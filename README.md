@@ -59,7 +59,7 @@ cd PSP-CSO-Converter-Termux
 **Run the script:**
 
 ```bash
-python compress_psp_isos.py
+python compress_isos.py
 ```
 
 ## Folder Structure
