@@ -249,7 +249,7 @@ def main():
             progress_percentage = 0
             compression_active = True
 
-            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             thread = threading.Thread(target=simulate_progress, args=(process, 100))
             thread.daemon = True
             thread.start()
@@ -259,27 +259,39 @@ def main():
             compression_active = False
 
             if process.returncode != 0:
+                stdout, stderr = process.communicate()
+                print(f"Compression failed: {stderr.decode()}")
+                if temp_zso.exists():
+                    temp_zso.unlink()
                 continue
 
             if not temp_zso.exists():
+                print(t("error_invalid_zso", lang=LANGUAGE))
                 continue
 
             zso_size = temp_zso.stat().st_size
-            move_file_safely(temp_zso, final_zso)
+            
+            if move_file_safely(temp_zso, final_zso):
+                if not keep_isos:
+                    iso_file.unlink()
 
-            if not keep_isos:
-                iso_file.unlink()
+                conversion_results.append({
+                    "name": game_name,
+                    "iso_size": iso_size,
+                    "zso_size": zso_size,
+                    "reduction": ((iso_size - zso_size) / iso_size) * 100
+                })
 
-            conversion_results.append({
-                "name": game_name,
-                "iso_size": iso_size,
-                "zso_size": zso_size,
-                "reduction": ((iso_size - zso_size) / iso_size) * 100
-            })
+                converted_files += 1
+            else:
+                print(t("error_move", lang=LANGUAGE))
+                if temp_zso.exists():
+                    temp_zso.unlink()
 
-            converted_files += 1
-
-        except:
+        except Exception as e:
+            print(t("error_exception", lang=LANGUAGE, error=str(e)))
+            if temp_zso.exists():
+                temp_zso.unlink()
             continue
 
     print("DONE")
