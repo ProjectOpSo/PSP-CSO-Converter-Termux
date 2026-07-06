@@ -78,7 +78,7 @@ Place your PSP ISO files inside:
 **Example:**
 
 ```
-PSP-Iso
+Iso
 ├── God of War - Chains of Olympus.iso
 ├── Tekken 6.iso
 ├── GTA Vice City Stories.iso
@@ -93,7 +93,7 @@ Compressed games will be saved to:
 **Example:**
 
 ```
-PSP-Cso
+Cso
 ├── God of War - Chains of Olympus.cso
 ├── Tekken 6.cso
 ├── GTA Vice City Stories.cso
