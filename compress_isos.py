@@ -23,9 +23,8 @@ def detect_storage():
 BASE_STORAGE = detect_storage()
 
 ISO_DIR = BASE_STORAGE / "Download" / "Iso"
-ZSO_DIR = BASE_STORAGE / "Download" / "Zso"
+CSO_DIR = BASE_STORAGE / "Download" / "Cso"
 
-ZISO = "/data/data/com.termux/files/home/Open-PS2-Loader/pc/ziso.py"
 COMP_LEVEL = "2"
 LANGUAGE = None
 
@@ -64,11 +63,9 @@ TRANSLATIONS = {
         "dir_not_found": "[ERRO] Diretorio nao encontrado: {path}",
         "no_iso_files": "[INFO] Nenhum arquivo ISO encontrado em {path}",
         "processing": "[{index}/{total}] Processando: {filename}",
-        "skip_exists": "[PULAR] Arquivo ZSO ja existe no destino.",
+        "skip_exists": "[PULAR] Arquivo CSO ja existe no destino.",
         "error_compression": "[ERRO] Falha na compressao.",
-        "error_invalid_zso": "[ERRO] Arquivo ZSO invalido gerado.",
-        "error_move": "[ERRO] Falha ao mover arquivo para pasta Zso.",
-        "ok_moved": "[OK] Arquivo movido com sucesso.",
+        "error_invalid_cso": "[ERRO] Arquivo CSO invalido gerado.",
         "ok_kept": "[OK] ISO mantida",
         "ok_deleted": "[OK] ISO deletada",
         "error_exception": "[ERRO] {error}",
@@ -85,7 +82,7 @@ TRANSLATIONS = {
         "detailed_results": "RESULTADOS DETALHADOS",
         "rom_name": "ROM",
         "iso_size_header": "Tamanho ISO",
-        "zso_size_header": "Tamanho ZSO",
+        "cso_size_header": "Tamanho CSO",
         "reduction_header": "Reducao",
     },
     "en_US": {
@@ -102,11 +99,9 @@ TRANSLATIONS = {
         "dir_not_found": "[ERROR] Directory not found: {path}",
         "no_iso_files": "[INFO] No ISO files found in {path}",
         "processing": "[{index}/{total}] Processing: {filename}",
-        "skip_exists": "[SKIP] ZSO file already exists in destination.",
+        "skip_exists": "[SKIP] CSO file already exists in destination.",
         "error_compression": "[ERROR] Compression failed.",
-        "error_invalid_zso": "[ERROR] Invalid ZSO file generated.",
-        "error_move": "[ERROR] Failed to move file to Zso folder.",
-        "ok_moved": "[OK] File moved successfully.",
+        "error_invalid_cso": "[ERROR] Invalid CSO file generated.",
         "ok_kept": "[OK] ISO kept",
         "ok_deleted": "[OK] ISO deleted",
         "error_exception": "[ERROR] {error}",
@@ -123,7 +118,7 @@ TRANSLATIONS = {
         "detailed_results": "DETAILED RESULTS",
         "rom_name": "ROM",
         "iso_size_header": "ISO Size",
-        "zso_size_header": "ZSO Size",
+        "cso_size_header": "CSO Size",
         "reduction_header": "Reduction",
     }
 }
@@ -200,24 +195,12 @@ def show_progress_screen(filename, language):
     print("█" * bar_width + " 100%")
     sleep(0.5)
 
-def move_file_safely(src, dst):
-    try:
-        shutil.move(str(src), str(dst))
-        return True
-    except:
-        try:
-            subprocess.run(['cp', str(src), str(dst)], check=True, capture_output=True)
-            os.remove(str(src))
-            return True
-        except:
-            return False
-
 def main():
     global LANGUAGE, progress_percentage, compression_active, conversion_results
     LANGUAGE = get_language()
     clear_screen()
 
-    ZSO_DIR.mkdir(parents=True, exist_ok=True)
+    CSO_DIR.mkdir(parents=True, exist_ok=True)
 
     if not ISO_DIR.exists():
         print(t("dir_not_found", lang=LANGUAGE, path=ISO_DIR))
@@ -235,15 +218,16 @@ def main():
 
     for index, iso_file in enumerate(iso_files, start=1):
         game_name = iso_file.stem
-        temp_zso = ISO_DIR / f"{game_name}.zso"
-        final_zso = ZSO_DIR / f"{game_name}.zso"
+        final_cso = CSO_DIR / f"{game_name}.cso"
 
-        if final_zso.exists():
+        if final_cso.exists():
+            print(t("skip_exists", lang=LANGUAGE))
             continue
 
         iso_size = iso_file.stat().st_size
 
-        command = ["python", ZISO, "-c", COMP_LEVEL, str(iso_file), str(temp_zso)]
+        # Use ciso command to convert ISO to CSO
+        command = ["ciso", COMP_LEVEL, str(iso_file), str(final_cso)]
 
         try:
             progress_percentage = 0
@@ -260,40 +244,62 @@ def main():
 
             if process.returncode != 0:
                 stdout, stderr = process.communicate()
-                print(f"Compression failed: {stderr.decode()}")
-                if temp_zso.exists():
-                    temp_zso.unlink()
+                print(t("error_compression", lang=LANGUAGE))
+                print(f"Details: {stderr.decode()}")
+                if final_cso.exists():
+                    final_cso.unlink()
                 continue
 
-            if not temp_zso.exists():
-                print(t("error_invalid_zso", lang=LANGUAGE))
+            if not final_cso.exists():
+                print(t("error_invalid_cso", lang=LANGUAGE))
                 continue
 
-            zso_size = temp_zso.stat().st_size
+            cso_size = final_cso.stat().st_size
             
-            if move_file_safely(temp_zso, final_zso):
-                if not keep_isos:
-                    iso_file.unlink()
-
-                conversion_results.append({
-                    "name": game_name,
-                    "iso_size": iso_size,
-                    "zso_size": zso_size,
-                    "reduction": ((iso_size - zso_size) / iso_size) * 100
-                })
-
-                converted_files += 1
+            if not keep_isos:
+                iso_file.unlink()
+                print(t("ok_deleted", lang=LANGUAGE))
             else:
-                print(t("error_move", lang=LANGUAGE))
-                if temp_zso.exists():
-                    temp_zso.unlink()
+                print(t("ok_kept", lang=LANGUAGE))
+
+            conversion_results.append({
+                "name": game_name,
+                "iso_size": iso_size,
+                "cso_size": cso_size,
+                "reduction": ((iso_size - cso_size) / iso_size) * 100
+            })
+
+            converted_files += 1
 
         except Exception as e:
             print(t("error_exception", lang=LANGUAGE, error=str(e)))
-            if temp_zso.exists():
-                temp_zso.unlink()
+            if final_cso.exists():
+                final_cso.unlink()
             continue
 
+    # Print summary
+    clear_screen()
+    print_separator()
+    print(t("summary_title", lang=LANGUAGE))
+    print_separator()
+    print()
+    print(f"{t('summary_found', lang=LANGUAGE)}: {total_files}")
+    print(f"{t('summary_converted', lang=LANGUAGE)}: {converted_files}")
+    print(f"{t('summary_failed', lang=LANGUAGE)}: {total_files - converted_files}")
+    print()
+    
+    if conversion_results:
+        print(t("detailed_results", lang=LANGUAGE))
+        print_separator()
+        print(f"{'ROM':<40} {'ISO Size':<15} {'CSO Size':<15} {'Reduction':<10}")
+        print_separator()
+        for result in conversion_results:
+            iso_sz = format_size(result['iso_size'])
+            cso_sz = format_size(result['cso_size'])
+            reduction = f"{result['reduction']:.1f}%"
+            print(f"{result['name']:<40} {iso_sz:<15} {cso_sz:<15} {reduction:<10}")
+    
+    print()
     print("DONE")
 
 if __name__ == "__main__":
